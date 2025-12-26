@@ -1,0 +1,240 @@
+# Approved Go Libraries
+# This is the source of truth for approved libraries - scripts parse this file
+# The markdown file (library-standards.mdc) is documentation that references this
+
+libraries:
+  # Core Framework & HTTP
+  - name: github.com/gin-gonic/gin
+    version: v1.9.1
+    category: Core Framework & HTTP
+    description: HTTP web framework
+  
+  - name: github.com/gin-contrib/requestid
+    version: v0.0.6
+    category: Core Framework & HTTP
+    description: Request ID middleware
+  
+  - name: github.com/gin-contrib/cors
+    version: v1.5.0
+    category: Core Framework & HTTP
+    description: CORS middleware
+  
+  - name: github.com/gin-contrib/sse
+    version: v0.1.0
+    category: Core Framework & HTTP
+    description: Server-sent events
+
+  # Configuration Management
+  - name: github.com/spf13/viper
+    version: v1.21.0
+    category: Configuration Management
+    description: Configuration management
+  
+  - name: github.com/fsnotify/fsnotify
+    version: v1.9.0
+    category: Configuration Management
+    description: File system notifications
+  
+  - name: github.com/go-viper/mapstructure/v2
+    version: v2.4.0
+    category: Configuration Management
+    description: Map structure decoding
+
+  # Database & ORM
+  - name: gorm.io/gorm
+    version: v1.31.0
+    category: Database & ORM
+    description: ORM
+  
+  - name: gorm.io/driver/postgres
+    version: v1.6.0
+    category: Database & ORM
+    description: PostgreSQL driver
+  
+  - name: github.com/golang-migrate/migrate/v4
+    version: v4.19.0
+    category: Database & ORM
+    description: Database migrations
+  
+  - name: github.com/lib/pq
+    version: v1.10.9
+    category: Database & ORM
+    description: PostgreSQL driver (legacy)
+
+  # Validation & Sanitization
+  - name: github.com/go-playground/validator/v10
+    version: v10.27.0
+    category: Validation & Sanitization
+    description: Input validation
+  
+  - name: github.com/go-playground/universal-translator
+    version: v0.18.1
+    category: Validation & Sanitization
+    description: Translation
+  
+  - name: github.com/go-playground/locales
+    version: v0.14.1
+    category: Validation & Sanitization
+    description: Locale support
+  
+  - name: github.com/microcosm-cc/bluemonday
+    version: v1.0.27
+    category: Validation & Sanitization
+    description: HTML sanitization (XSS prevention)
+
+  # Logging & Monitoring
+  - name: go.uber.org/zap
+    version: v1.27.0
+    category: Logging & Monitoring
+    description: Structured logging
+  
+  - name: go.uber.org/multierr
+    version: v1.11.0
+    category: Logging & Monitoring
+    description: Multi-error handling
+  
+  - name: github.com/prometheus/client_golang
+    version: v1.23.2
+    category: Logging & Monitoring
+    description: Prometheus metrics (official Go client)
+
+  # Authentication & Security
+  - name: github.com/golang-jwt/jwt/v5
+    version: v5.2.1
+    category: Authentication & Security
+    description: JWT token parsing (used by Auth0 middleware)
+  
+  - name: github.com/lestrrat-go/jwx/v2
+    version: v2.1.0
+    category: Authentication & Security
+    description: JWKS support for Auth0
+  
+  - name: k8s.io/client-go
+    version: v0.30.0
+    category: Authentication & Security
+    description: Kubernetes Go client library for TokenReview API validation (S2S authentication)
+  
+  - name: k8s.io/api
+    version: v0.30.0
+    category: Authentication & Security
+    description: Kubernetes API types for authentication (TokenReview API)
+
+  # Documentation & API
+  - name: github.com/swaggo/swag
+    version: v1.16.4
+    category: Documentation & API
+    description: Swagger documentation
+  
+  - name: github.com/swaggo/gin-swagger
+    version: v1.6.0
+    category: Documentation & API
+    description: Gin Swagger integration
+  
+  - name: github.com/swaggo/files
+    version: v1.0.1
+    category: Documentation & API
+    description: Swagger file serving
+  
+  - name: github.com/go-openapi/spec
+    version: v0.20.4
+    category: Documentation & API
+    description: OpenAPI specification
+  
+  - name: github.com/go-openapi/swag
+    version: v0.19.15
+    category: Documentation & API
+    description: Swagger utilities
+
+  # Utilities & Helpers
+  - name: github.com/google/uuid
+    version: v1.6.0
+    category: Utilities & Helpers
+    description: UUID generation
+  
+  - name: golang.org/x/text
+    version: v0.28.0
+    category: Utilities & Helpers
+    description: Text processing
+  
+  - name: golang.org/x/crypto
+    version: v0.40.0
+    category: Utilities & Helpers
+    description: Cryptographic functions
+  
+  - name: golang.org/x/sys
+    version: v0.34.0
+    category: Utilities & Helpers
+    description: System calls
+  
+  - name: golang.org/x/net
+    version: v0.42.0
+    category: Utilities & Helpers
+    description: Network utilities
+  
+  - name: golang.org/x/sync
+    version: v0.16.0
+    category: Utilities & Helpers
+    description: Synchronization primitives
+
+  # JSON & Data Processing
+  - name: github.com/json-iterator/go
+    version: v1.1.12
+    category: JSON & Data Processing
+    description: JSON processing
+  
+  - name: github.com/goccy/go-json
+    version: v0.10.2
+    category: JSON & Data Processing
+    description: JSON processing
+  
+  - name: github.com/bytedance/sonic
+    version: v1.10.1
+    category: JSON & Data Processing
+    description: JSON processing
+  
+  - name: github.com/ugorji/go/codec
+    version: v1.2.11
+    category: JSON & Data Processing
+    description: Codec utilities
+
+  # YAML & Configuration
+  - name: gopkg.in/yaml.v3
+    version: v3.0.1
+    category: YAML & Configuration
+    description: YAML processing
+  
+  - name: gopkg.in/yaml.v2
+    version: v2.4.0
+    category: YAML & Configuration
+    description: YAML processing (legacy)
+  
+  - name: go.yaml.in/yaml/v3
+    version: v3.0.4
+    category: YAML & Configuration
+    description: YAML processing
+
+  # Testing & Development
+  - name: github.com/stretchr/testify
+    version: v1.11.1
+    category: Testing & Development
+    description: Testing utilities
+  
+  - name: github.com/google/go-cmp
+    version: v0.6.0
+    category: Testing & Development
+    description: Testing comparisons
+  
+  - name: github.com/DATA-DOG/go-sqlmock
+    version: v1.5.0
+    category: Testing & Development
+    description: SQL mock for testing
+
+
+
+
+
+
+
+
+
+
