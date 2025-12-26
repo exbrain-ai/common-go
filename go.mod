@@ -1,4 +1,4 @@
-module github.com/medbai2/common-go
+module github.com/exbrain-ai/common-go
 
 go 1.25
 
