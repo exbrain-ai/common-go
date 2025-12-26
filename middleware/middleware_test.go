@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/medbai2/common-go/testutils"
+	"github.com/exbrain-ai/common-go/testutils"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"

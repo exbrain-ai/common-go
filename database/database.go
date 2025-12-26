@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/medbai2/common-go/errors"
+	"github.com/exbrain-ai/common-go/errors"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"

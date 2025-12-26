@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/medbai2/common-go/logger"
+	"github.com/exbrain-ai/common-go/logger"
 
 	"github.com/gin-gonic/gin"
 )

@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/medbai2/common-go/logger"
-	"github.com/medbai2/common-go/testutils"
+	"github.com/exbrain-ai/common-go/logger"
+	"github.com/exbrain-ai/common-go/testutils"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"

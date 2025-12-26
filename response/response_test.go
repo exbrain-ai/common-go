@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"testing"
 
-	appErrors "github.com/medbai2/common-go/errors"
-	"github.com/medbai2/common-go/testutils"
+	appErrors "github.com/exbrain-ai/common-go/errors"
+	"github.com/exbrain-ai/common-go/testutils"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"

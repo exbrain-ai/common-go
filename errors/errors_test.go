@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/medbai2/common-go/testutils"
+	"github.com/exbrain-ai/common-go/testutils"
 )
 
 func TestAppError_BasicFunctionality(t *testing.T) {

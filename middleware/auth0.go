@@ -12,10 +12,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/lestrrat-go/jwx/v2/jwk"
-	"github.com/medbai2/common-go/config"
-	"github.com/medbai2/common-go/logger"
-	"github.com/medbai2/common-go/response"
-	"github.com/medbai2/common-go/types"
+	"github.com/exbrain-ai/common-go/config"
+	"github.com/exbrain-ai/common-go/logger"
+	"github.com/exbrain-ai/common-go/response"
+	"github.com/exbrain-ai/common-go/types"
 )
 
 var (

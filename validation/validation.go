@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/medbai2/common-go/errors"
+	"github.com/exbrain-ai/common-go/errors"
 )
 
 // ValidationResult represents the result of validation

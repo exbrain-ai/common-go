@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/medbai2/common-go/errors"
-	"github.com/medbai2/common-go/testutils"
+	"github.com/exbrain-ai/common-go/errors"
+	"github.com/exbrain-ai/common-go/testutils"
 )
 
 // ValidationTestCase represents a validation test case
