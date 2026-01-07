@@ -1,12 +1,15 @@
 package database
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/exbrain-ai/common-go/errors"
 
 	"gorm.io/driver/postgres"
@@ -20,7 +23,11 @@ type AuthType string
 const (
 	AuthTypePassword AuthType = "password" // Password-based authentication (Onebox)
 	AuthTypeIAM     AuthType = "iam"       // IAM-based authentication (GCP)
+	AuthTypeAzureAD AuthType = "azuread"   // Azure AD authentication (Azure PostgreSQL)
 )
+
+// Azure AD token resource for PostgreSQL
+const azurePostgreSQLResourceID = "https://ossrdbms-aad.database.windows.net"
 
 // Config represents database configuration
 type Config struct {
@@ -30,23 +37,103 @@ type Config struct {
 	Name            string
 	User            string
 	Password        string
-	AuthType        AuthType // Explicit authentication type: "password" or "iam"
+	AuthType        AuthType // Explicit authentication type: "password", "iam", or "azuread"
 	SSLMode         string
 	SchemaAutoApply bool
 	MaxOpenConns    int
 	MaxIdleConns    int
 	ConnMaxLifetime time.Duration
 	ConnMaxIdleTime time.Duration
+	// Azure AD specific configuration
+	AzureManagedIdentityClientID string // Managed identity client ID for Azure AD auth
+}
+
+// tokenCache caches Azure AD tokens with expiration
+type tokenCache struct {
+	token     string
+	expiresAt time.Time
+	mu        sync.RWMutex
+}
+
+var globalTokenCache = &tokenCache{}
+
+// getAzureADToken gets an Azure AD token for PostgreSQL authentication
+// Uses managed identity (Workload Identity) to acquire the token
+func getAzureADToken(ctx context.Context, clientID string) (string, error) {
+	// Check cache first
+	globalTokenCache.mu.RLock()
+	if globalTokenCache.token != "" && time.Now().Before(globalTokenCache.expiresAt.Add(-5*time.Minute)) {
+		// Token is still valid (with 5 minute buffer)
+		token := globalTokenCache.token
+		globalTokenCache.mu.RUnlock()
+		return token, nil
+	}
+	globalTokenCache.mu.RUnlock()
+
+	// Acquire new token
+	globalTokenCache.mu.Lock()
+	defer globalTokenCache.mu.Unlock()
+
+	// Double-check after acquiring lock
+	if globalTokenCache.token != "" && time.Now().Before(globalTokenCache.expiresAt.Add(-5*time.Minute)) {
+		return globalTokenCache.token, nil
+	}
+
+	// Create credential options
+	var credOptions []azidentity.ManagedIdentityCredentialOptions
+	if clientID != "" {
+		credOptions = append(credOptions, azidentity.ManagedIdentityCredentialOptions{
+			ID: azidentity.ClientID(clientID),
+		})
+	}
+
+	// Create managed identity credential
+	cred, err := azidentity.NewManagedIdentityCredential(credOptions...)
+	if err != nil {
+		return "", fmt.Errorf("failed to create managed identity credential: %w", err)
+	}
+
+	// Get token for PostgreSQL
+	token, err := cred.GetToken(ctx, azidentity.TokenRequestOptions{
+		Scopes: []string{azurePostgreSQLResourceID + "/.default"},
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to get Azure AD token: %w", err)
+	}
+
+	// Cache the token
+	globalTokenCache.token = token.Token
+	globalTokenCache.expiresAt = token.ExpiresOn
+
+	log.Printf("Acquired Azure AD token (expires at: %v)", token.ExpiresOn)
+	return token.Token, nil
 }
 
 // buildDSN builds the PostgreSQL DSN string
-// Handles both password-based and IAM-based authentication based on AuthType
-func buildDSN(cfg Config) string {
+// Handles password-based, IAM-based (GCP), and Azure AD authentication based on AuthType
+func buildDSN(ctx context.Context, cfg Config) (string, error) {
 	password := cfg.Password
+	
 	if cfg.AuthType == AuthTypeIAM {
 		// IAM authentication: explicitly empty password
 		// Cloud SQL Proxy will handle IAM token exchange
 		password = ""
+	} else if cfg.AuthType == AuthTypeAzureAD {
+		// Azure AD authentication: get token from managed identity
+		if cfg.AzureManagedIdentityClientID == "" {
+			return "", fmt.Errorf("AzureManagedIdentityClientID is required for Azure AD authentication")
+		}
+		
+		token, err := getAzureADToken(ctx, cfg.AzureManagedIdentityClientID)
+		if err != nil {
+			return "", fmt.Errorf("failed to get Azure AD token: %w", err)
+		}
+		password = token
+		
+		// For Azure AD, username should be the managed identity client ID
+		if cfg.User == "" {
+			cfg.User = cfg.AzureManagedIdentityClientID
+		}
 	}
 	// Debug: Log the config values being used
 	log.Printf("buildDSN - Host: %s, Port: %d, User: %s, Name: %s, SSLMode: %s",
@@ -112,7 +199,7 @@ func buildDSN(cfg Config) string {
 	// Security: never log DSNs because they can include secrets (passwords/tokens).
 	log.Printf("buildDSN - dbname in DSN: '%s' (length: %d)", dbName, len(dbName))
 	
-	return dsn
+	return dsn, nil
 }
 
 // New creates a new GORM database connection
@@ -123,23 +210,36 @@ func New(cfg Config) (*gorm.DB, error) {
 		// Default to password auth if not specified (backward compatibility)
 		cfg.AuthType = AuthTypePassword
 	}
-	if cfg.AuthType != AuthTypePassword && cfg.AuthType != AuthTypeIAM {
-		return nil, errors.Wrap(fmt.Errorf("invalid auth type: %s (must be 'password' or 'iam')", cfg.AuthType), errors.ErrCodeDatabaseError, "invalid authentication configuration")
+	if cfg.AuthType != AuthTypePassword && cfg.AuthType != AuthTypeIAM && cfg.AuthType != AuthTypeAzureAD {
+		return nil, errors.Wrap(fmt.Errorf("invalid auth type: %s (must be 'password', 'iam', or 'azuread')", cfg.AuthType), errors.ErrCodeDatabaseError, "invalid authentication configuration")
 	}
 
 	// Validate configuration based on auth type
 	if cfg.AuthType == AuthTypeIAM && cfg.Password != "" {
 		log.Printf("Warning: Password provided but using IAM authentication. Password will be ignored.")
 	}
+	if cfg.AuthType == AuthTypeAzureAD && cfg.Password != "" {
+		log.Printf("Warning: Password provided but using Azure AD authentication. Password will be ignored.")
+	}
 	if cfg.AuthType == AuthTypePassword && cfg.Password == "" {
 		return nil, errors.Wrap(fmt.Errorf("password authentication requires a password"), errors.ErrCodeDatabaseError, "invalid authentication configuration")
 	}
+	if cfg.AuthType == AuthTypeAzureAD && cfg.AzureManagedIdentityClientID == "" {
+		return nil, errors.Wrap(fmt.Errorf("Azure AD authentication requires AzureManagedIdentityClientID"), errors.ErrCodeDatabaseError, "invalid authentication configuration")
+	}
 
-	dsn := buildDSN(cfg)
+	// Build DSN with context for Azure AD token acquisition
+	ctx := context.Background()
+	dsn, err := buildDSN(ctx, cfg)
+	if err != nil {
+		return nil, errors.Wrap(err, errors.ErrCodeDatabaseError, "failed to build database connection string")
+	}
 
 	// Log authentication mode for debugging
 	if cfg.AuthType == AuthTypeIAM {
 		log.Printf("Using IAM authentication for user: %s", cfg.User)
+	} else if cfg.AuthType == AuthTypeAzureAD {
+		log.Printf("Using Azure AD authentication for user: %s (managed identity: %s)", cfg.User, cfg.AzureManagedIdentityClientID)
 	} else {
 		log.Printf("Using password authentication for user: %s", cfg.User)
 	}

@@ -118,6 +118,11 @@ libraries:
     version: v0.30.0
     category: Authentication & Security
     description: Kubernetes API types for authentication (TokenReview API)
+  
+  - name: github.com/Azure/azure-sdk-for-go/sdk/azidentity
+    version: v1.5.1
+    category: Authentication & Security
+    description: Azure Identity SDK for managed identity authentication (Azure AD tokens)
 
   # Documentation & API
   - name: github.com/swaggo/swag
