@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/exbrain-ai/common-go/errors"
 
@@ -59,6 +60,8 @@ var globalTokenCache = &tokenCache{}
 
 // getAzureADToken gets an Azure AD token for PostgreSQL authentication
 // Uses managed identity (Workload Identity) to acquire the token
+// If clientID is empty, the Azure SDK will auto-detect the managed identity from the pod's
+// service account annotation (azure.workload.identity/client-id) when running in AKS with Workload Identity enabled
 func getAzureADToken(ctx context.Context, clientID string) (string, error) {
 	// Check cache first
 	globalTokenCache.mu.RLock()
@@ -80,21 +83,29 @@ func getAzureADToken(ctx context.Context, clientID string) (string, error) {
 	}
 
 	// Create credential options
-	var credOptions []azidentity.ManagedIdentityCredentialOptions
+	// If clientID is empty, pass nil to auto-detect from pod's workload identity
+	var credOptions *azidentity.ManagedIdentityCredentialOptions
 	if clientID != "" {
-		credOptions = append(credOptions, azidentity.ManagedIdentityCredentialOptions{
+		credOptions = &azidentity.ManagedIdentityCredentialOptions{
 			ID: azidentity.ClientID(clientID),
-		})
+		}
+		log.Printf("Using explicit managed identity client ID: %s", clientID)
+	} else {
+		log.Printf("No client ID provided, will auto-detect managed identity from pod's workload identity")
 	}
 
 	// Create managed identity credential
-	cred, err := azidentity.NewManagedIdentityCredential(credOptions...)
+	// If credOptions is nil, SDK auto-detects from pod's service account annotation
+	cred, err := azidentity.NewManagedIdentityCredential(credOptions)
 	if err != nil {
-		return "", fmt.Errorf("failed to create managed identity credential: %w", err)
+		if clientID == "" {
+			return "", fmt.Errorf("failed to auto-detect managed identity credential (ensure pod has workload identity configured with azure.workload.identity/client-id annotation): %w", err)
+		}
+		return "", fmt.Errorf("failed to create managed identity credential with client ID %s: %w", clientID, err)
 	}
 
 	// Get token for PostgreSQL
-	token, err := cred.GetToken(ctx, azidentity.TokenRequestOptions{
+	token, err := cred.GetToken(ctx, policy.TokenRequestOptions{
 		Scopes: []string{azurePostgreSQLResourceID + "/.default"},
 	})
 	if err != nil {
@@ -120,18 +131,16 @@ func buildDSN(ctx context.Context, cfg Config) (string, error) {
 		password = ""
 	} else if cfg.AuthType == AuthTypeAzureAD {
 		// Azure AD authentication: get token from managed identity
-		if cfg.AzureManagedIdentityClientID == "" {
-			return "", fmt.Errorf("AzureManagedIdentityClientID is required for Azure AD authentication")
-		}
-		
+		// AzureManagedIdentityClientID is optional - if empty, SDK will auto-detect from pod's workload identity
 		token, err := getAzureADToken(ctx, cfg.AzureManagedIdentityClientID)
 		if err != nil {
 			return "", fmt.Errorf("failed to get Azure AD token: %w", err)
 		}
 		password = token
 		
-		// For Azure AD, username should be the managed identity client ID
-		if cfg.User == "" {
+		// For Azure AD, username should be the managed identity client ID if provided
+		// If not provided, the database connection will use the auto-detected identity
+		if cfg.User == "" && cfg.AzureManagedIdentityClientID != "" {
 			cfg.User = cfg.AzureManagedIdentityClientID
 		}
 	}
@@ -224,9 +233,9 @@ func New(cfg Config) (*gorm.DB, error) {
 	if cfg.AuthType == AuthTypePassword && cfg.Password == "" {
 		return nil, errors.Wrap(fmt.Errorf("password authentication requires a password"), errors.ErrCodeDatabaseError, "invalid authentication configuration")
 	}
-	if cfg.AuthType == AuthTypeAzureAD && cfg.AzureManagedIdentityClientID == "" {
-		return nil, errors.Wrap(fmt.Errorf("Azure AD authentication requires AzureManagedIdentityClientID"), errors.ErrCodeDatabaseError, "invalid authentication configuration")
-	}
+	// Note: AzureManagedIdentityClientID is optional for Azure AD auth
+	// If not provided, the SDK will auto-detect from pod's workload identity (azure.workload.identity/client-id annotation)
+	// Validation happens at token acquisition time, not here, to provide better error messages
 
 	// Build DSN with context for Azure AD token acquisition
 	ctx := context.Background()
