@@ -46,7 +46,7 @@ func TestRequireAuth(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			hts := testutils.NewHTTPTestSuite(t)
-			appLogger := logger.NewLogger("test", "info")
+			appLogger := logger.New(logger.INFO, "test")
 
 			hts.Router.Use(RequireAuth(appLogger))
 			hts.Router.GET("/test", func(c *gin.Context) {
@@ -144,7 +144,7 @@ func TestRequireAnyRole(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			hts := testutils.NewHTTPTestSuite(t)
-			appLogger := logger.NewLogger("test", "info")
+			appLogger := logger.New(logger.INFO, "test")
 
 			hts.Router.Use(RequireAnyRole(appLogger, tt.requiredRoles...))
 			hts.Router.GET("/test", func(c *gin.Context) {
@@ -251,7 +251,7 @@ func TestRequireAnyPermission(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			hts := testutils.NewHTTPTestSuite(t)
-			appLogger := logger.NewLogger("test", "info")
+			appLogger := logger.New(logger.INFO, "test")
 
 			hts.Router.Use(RequireAnyPermission(appLogger, tt.requiredPermissions...))
 			hts.Router.GET("/test", func(c *gin.Context) {
@@ -341,7 +341,7 @@ func TestRequireAllPermissions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			hts := testutils.NewHTTPTestSuite(t)
-			appLogger := logger.NewLogger("test", "info")
+			appLogger := logger.New(logger.INFO, "test")
 
 			hts.Router.Use(RequireAllPermissions(appLogger, tt.requiredPermissions...))
 			hts.Router.GET("/test", func(c *gin.Context) {
@@ -420,6 +420,200 @@ func TestPermissionFormatValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			matches := permissionFormatRegex.MatchString(tt.permission)
 			assert.Equal(t, tt.shouldMatch, matches, tt.description)
+		})
+	}
+}
+
+func TestHasPermission(t *testing.T) {
+	tests := []struct {
+		name               string
+		permissions        []string
+		requiredPermission string
+		expected           bool
+	}{
+		{
+			name:               "Permission found",
+			permissions:        []string{"hello:message:delete", "hello:message:create"},
+			requiredPermission: "hello:message:delete",
+			expected:           true,
+		},
+		{
+			name:               "Permission not found",
+			permissions:        []string{"hello:message:create"},
+			requiredPermission: "hello:message:delete",
+			expected:           false,
+		},
+		{
+			name:               "Empty permissions list",
+			permissions:        []string{},
+			requiredPermission: "hello:message:delete",
+			expected:           false,
+		},
+		{
+			name:               "Nil permissions list",
+			permissions:        nil,
+			requiredPermission: "hello:message:delete",
+			expected:           false,
+		},
+		{
+			name:               "Permission with whitespace trimmed",
+			permissions:        []string{" hello:message:delete ", "hello:message:create"},
+			requiredPermission: "hello:message:delete",
+			expected:           true,
+		},
+		{
+			name:               "Required permission with whitespace trimmed",
+			permissions:        []string{"hello:message:delete", "hello:message:create"},
+			requiredPermission: " hello:message:delete ",
+			expected:           true,
+		},
+		{
+			name:               "Case sensitive - no match",
+			permissions:        []string{"Hello:Message:Delete"},
+			requiredPermission: "hello:message:delete",
+			expected:           false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := HasPermission(tt.permissions, tt.requiredPermission)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestHasAnyPermission(t *testing.T) {
+	tests := []struct {
+		name                string
+		permissions         []string
+		requiredPermissions []string
+		expected            bool
+	}{
+		{
+			name:                "Has first of multiple required",
+			permissions:         []string{"hello:message:delete", "hello:message:create"},
+			requiredPermissions: []string{"hello:message:delete", "hello:admin:manage"},
+			expected:            true,
+		},
+		{
+			name:                "Has second of multiple required",
+			permissions:         []string{"hello:admin:manage"},
+			requiredPermissions: []string{"hello:message:delete", "hello:admin:manage"},
+			expected:            true,
+		},
+		{
+			name:                "Has none of multiple required",
+			permissions:         []string{"hello:message:view"},
+			requiredPermissions: []string{"hello:message:delete", "hello:admin:manage"},
+			expected:            false,
+		},
+		{
+			name:                "Empty permissions",
+			permissions:         []string{},
+			requiredPermissions: []string{"hello:message:delete"},
+			expected:            false,
+		},
+		{
+			name:                "Empty required permissions",
+			permissions:         []string{"hello:message:delete"},
+			requiredPermissions: []string{},
+			expected:            false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := HasAnyPermission(tt.permissions, tt.requiredPermissions...)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestHasAllPermissions(t *testing.T) {
+	tests := []struct {
+		name                string
+		permissions         []string
+		requiredPermissions []string
+		expected            bool
+	}{
+		{
+			name:                "Has all required permissions",
+			permissions:         []string{"hello:message:delete", "hello:message:create", "hello:admin:manage"},
+			requiredPermissions: []string{"hello:message:delete", "hello:message:create"},
+			expected:            true,
+		},
+		{
+			name:                "Missing one required permission",
+			permissions:         []string{"hello:message:delete"},
+			requiredPermissions: []string{"hello:message:delete", "hello:message:create"},
+			expected:            false,
+		},
+		{
+			name:                "Missing all required permissions",
+			permissions:         []string{"hello:message:view"},
+			requiredPermissions: []string{"hello:message:delete", "hello:message:create"},
+			expected:            false,
+		},
+		{
+			name:                "Empty permissions",
+			permissions:         []string{},
+			requiredPermissions: []string{"hello:message:delete"},
+			expected:            false,
+		},
+		{
+			name:                "Empty required permissions",
+			permissions:         []string{"hello:message:delete"},
+			requiredPermissions: []string{},
+			expected:            true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := HasAllPermissions(tt.permissions, tt.requiredPermissions...)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestParsePermissions(t *testing.T) {
+	tests := []struct {
+		name     string
+		header   string
+		expected []string
+	}{
+		{
+			name:     "Multiple permissions",
+			header:   "hello:message:delete,hello:message:create",
+			expected: []string{"hello:message:delete", "hello:message:create"},
+		},
+		{
+			name:     "Permissions with spaces",
+			header:   "hello:message:delete, hello:message:create, hello:admin:manage",
+			expected: []string{"hello:message:delete", "hello:message:create", "hello:admin:manage"},
+		},
+		{
+			name:     "Single permission",
+			header:   "hello:message:delete",
+			expected: []string{"hello:message:delete"},
+		},
+		{
+			name:     "Empty header",
+			header:   "",
+			expected: []string{},
+		},
+		{
+			name:     "Only whitespace",
+			header:   "   ",
+			expected: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ParsePermissions(tt.header)
+			assert.Equal(t, tt.expected, result)
 		})
 	}
 }

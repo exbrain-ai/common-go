@@ -246,35 +246,16 @@ func convertFields(fields ...map[string]interface{}) []zap.Field {
 
 // getRequestIDFromContext extracts request ID from context
 func getRequestIDFromContext(ctx context.Context) string {
-	if requestID, ok := ctx.Value("requestId").(string); ok {
+	if requestID, ok := ctx.Value(RequestIDKey).(string); ok {
 		return requestID
 	}
 	return ""
 }
 
 // NewZapLoggerFromConfig creates a logger from configuration
+// Routes logs by level: Info/Debug/Warn → stdout, Error/Fatal → stderr
 func NewZapLoggerFromConfig(level string, environment string) *ZapLogger {
-	// Configure based on environment
-	var config zap.Config
-
-	if environment == "development" || environment == "local" {
-		// Development: more readable console output
-		config = zap.NewDevelopmentConfig()
-		config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-		config.EncoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout(time.RFC3339)
-	} else {
-		// Production: JSON output for log aggregation
-		config = zap.NewProductionConfig()
-		config.EncoderConfig.TimeKey = "timestamp"
-		config.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
-		config.EncoderConfig.LevelKey = "level"
-		config.EncoderConfig.MessageKey = "message"
-		config.EncoderConfig.CallerKey = "caller"
-		config.EncoderConfig.StacktraceKey = "stacktrace"
-		config.EncoderConfig.EncodeLevel = zapcore.LowercaseLevelEncoder
-	}
-
-	// Set log level
+	// Parse log level
 	var zapLevel zapcore.Level
 	switch level {
 	case "debug":
@@ -288,14 +269,50 @@ func NewZapLoggerFromConfig(level string, environment string) *ZapLogger {
 	default:
 		zapLevel = zapcore.InfoLevel
 	}
-	config.Level = zap.NewAtomicLevelAt(zapLevel)
 
-	// Build logger
-	logger, err := config.Build()
-	if err != nil {
-		// Fallback to basic logger
-		logger = zap.NewNop()
+	// Configure encoder based on environment
+	var encoderConfig zapcore.EncoderConfig
+	var encoder zapcore.Encoder
+
+	if environment == "development" || environment == "local" {
+		encoderConfig = zap.NewDevelopmentEncoderConfig()
+		encoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+		encoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout(time.RFC3339)
+		encoder = zapcore.NewConsoleEncoder(encoderConfig)
+	} else {
+		encoderConfig = zap.NewProductionEncoderConfig()
+		encoderConfig.TimeKey = "timestamp"
+		encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+		encoderConfig.LevelKey = "level"
+		encoderConfig.MessageKey = "message"
+		encoderConfig.CallerKey = "caller"
+		encoderConfig.StacktraceKey = "stacktrace"
+		encoderConfig.EncodeLevel = zapcore.LowercaseLevelEncoder
+		encoder = zapcore.NewJSONEncoder(encoderConfig)
 	}
+
+	// Create cores with level-based routing:
+	// - Info/Debug/Warn → stdout (successful operations)
+	// - Error/Fatal → stderr (actual errors)
+	stdoutCore := zapcore.NewCore(
+		encoder,
+		zapcore.AddSync(os.Stdout),
+		zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
+			return lvl >= zapLevel && lvl < zapcore.ErrorLevel
+		}),
+	)
+
+	stderrCore := zapcore.NewCore(
+		encoder,
+		zapcore.AddSync(os.Stderr),
+		zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
+			return lvl >= zapcore.ErrorLevel && lvl >= zapLevel
+		}),
+	)
+
+	// Combine cores - each log goes to appropriate stream based on level
+	core := zapcore.NewTee(stdoutCore, stderrCore)
+	logger := zap.New(core, zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel))
 
 	return &ZapLogger{
 		logger: logger,
@@ -345,20 +362,30 @@ func ParseLogLevel(level string) LogLevel {
 	}
 }
 
-// New creates a new logger instance (compatibility function)
+// New creates a new logger instance
 func New(level LogLevel, service string) Logger {
 	levelStr := level.String()
-	zapLogger := NewZapLoggerFromConfig(levelStr, "production")
+	environment := os.Getenv("ENVIRONMENT")
+	if environment == "" {
+		environment = "production"
+	}
+	zapLogger := NewZapLoggerFromConfig(levelStr, environment)
 	return zapLogger.WithService(service)
 }
 
 // NewFromEnv creates a logger from environment variables
+// Reads LOG_LEVEL and ENVIRONMENT from environment
 func NewFromEnv(service string) Logger {
 	levelStr := os.Getenv("LOG_LEVEL")
 	if levelStr == "" {
 		levelStr = "info"
 	}
-	return New(ParseLogLevel(levelStr), service)
+	environment := os.Getenv("ENVIRONMENT")
+	if environment == "" {
+		environment = "production"
+	}
+	zapLogger := NewZapLoggerFromConfig(levelStr, environment)
+	return zapLogger.WithService(service)
 }
 
 // Context keys for request ID and other context values

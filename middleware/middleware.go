@@ -23,8 +23,7 @@ func Logger() gin.HandlerFunc {
 			}
 		}
 
-		// Log the request
-		appLogger.Info("HTTP request completed", map[string]interface{}{
+		logFields := map[string]interface{}{
 			"requestId":  requestID,
 			"method":     param.Method,
 			"url":        param.Path,
@@ -32,7 +31,17 @@ func Logger() gin.HandlerFunc {
 			"duration":   param.Latency.Milliseconds(),
 			"userAgent":  param.Request.UserAgent(),
 			"clientIP":   param.ClientIP,
-		})
+		}
+
+		// Route logs by status code: < 400 → Info (stdout), 400-499 → Warn (stdout), >= 500 → Error (stderr)
+		switch {
+		case param.StatusCode >= 500:
+			appLogger.Error("HTTP request failed", fmt.Errorf("server error: %d", param.StatusCode), logFields)
+		case param.StatusCode >= 400:
+			appLogger.Warn("HTTP request client error", logFields)
+		default:
+			appLogger.Info("HTTP request completed", logFields)
+		}
 
 		return ""
 	})
