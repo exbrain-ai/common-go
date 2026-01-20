@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/exbrain-ai/common-go/errors"
@@ -82,26 +84,52 @@ func getAzureADToken(ctx context.Context, clientID string) (string, error) {
 		return globalTokenCache.token, nil
 	}
 
-	// Create credential options
-	// If clientID is empty, pass nil to auto-detect from pod's workload identity
-	var credOptions *azidentity.ManagedIdentityCredentialOptions
-	if clientID != "" {
-		credOptions = &azidentity.ManagedIdentityCredentialOptions{
-			ID: azidentity.ClientID(clientID),
+	// Try Workload Identity first (AKS), then fallback to Managed Identity (VM)
+	// Workload Identity uses AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_FEDERATED_TOKEN_FILE env vars
+	// Managed Identity uses IMDS endpoint (169.254.169.254)
+	
+	var cred azcore.TokenCredential
+	var err error
+	
+	// Check if running in Workload Identity environment (AKS)
+	if os.Getenv("AZURE_FEDERATED_TOKEN_FILE") != "" {
+		log.Printf("Detected Workload Identity environment (AZURE_FEDERATED_TOKEN_FILE set)")
+		
+		// Use WorkloadIdentityCredential for AKS
+		// This uses the federated token file mounted by the workload identity webhook
+		opts := &azidentity.WorkloadIdentityCredentialOptions{}
+		if clientID != "" {
+			opts.ClientID = clientID
+			log.Printf("Using Workload Identity with explicit client ID: %s", clientID)
+		} else {
+			log.Printf("Using Workload Identity with auto-detected client ID from AZURE_CLIENT_ID env")
 		}
-		log.Printf("Using explicit managed identity client ID: %s", clientID)
+		
+		cred, err = azidentity.NewWorkloadIdentityCredential(opts)
+		if err != nil {
+			return "", fmt.Errorf("failed to create Workload Identity credential: %w", err)
+		}
 	} else {
-		log.Printf("No client ID provided, will auto-detect managed identity from pod's workload identity")
-	}
-
-	// Create managed identity credential
-	// If credOptions is nil, SDK auto-detects from pod's service account annotation
-	cred, err := azidentity.NewManagedIdentityCredential(credOptions)
-	if err != nil {
-		if clientID == "" {
-			return "", fmt.Errorf("failed to auto-detect managed identity credential (ensure pod has workload identity configured with azure.workload.identity/client-id annotation): %w", err)
+		log.Printf("Using VM Managed Identity (IMDS)")
+		
+		// Use ManagedIdentityCredential for VMs
+		var credOptions *azidentity.ManagedIdentityCredentialOptions
+		if clientID != "" {
+			credOptions = &azidentity.ManagedIdentityCredentialOptions{
+				ID: azidentity.ClientID(clientID),
+			}
+			log.Printf("Using explicit managed identity client ID: %s", clientID)
+		} else {
+			log.Printf("No client ID provided, will auto-detect managed identity from pod's workload identity")
 		}
-		return "", fmt.Errorf("failed to create managed identity credential with client ID %s: %w", clientID, err)
+		
+		cred, err = azidentity.NewManagedIdentityCredential(credOptions)
+		if err != nil {
+			if clientID == "" {
+				return "", fmt.Errorf("failed to auto-detect managed identity credential (ensure pod has workload identity configured with azure.workload.identity/client-id annotation): %w", err)
+			}
+			return "", fmt.Errorf("failed to create managed identity credential with client ID %s: %w", clientID, err)
+		}
 	}
 
 	// Get token for PostgreSQL
