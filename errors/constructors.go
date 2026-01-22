@@ -85,4 +85,3 @@ func NewRateLimitExceeded(message string) *AppError {
 func NewExternalServiceError(service string, err error) *AppError {
 	return Wrap(err, ErrCodeExternalService, GetMessage(ErrCodeExternalService, service))
 }
-

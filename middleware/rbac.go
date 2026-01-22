@@ -11,9 +11,9 @@ import (
 )
 
 // permissionFormatRegex validates permission format: {app}:{feature}:{action}
-// Matches lowercase letters, numbers, underscores, and colons
+// Matches lowercase letters, numbers, and underscores in each segment with exactly two ':' separators.
 // Example: "hello:greeting:create", "hello:greeting:delete"
-var permissionFormatRegex = regexp.MustCompile(`^[a-z0-9_:]+$`)
+var permissionFormatRegex = regexp.MustCompile(`^[a-z0-9_]+:[a-z0-9_]+:[a-z0-9_]+$`)
 
 // RequireAuth checks if user is authenticated (X-User-ID header present)
 // Returns 403 Forbidden if user is not authenticated
@@ -347,10 +347,3 @@ func HasAllPermissions(permissions []string, requiredPermissions ...string) bool
 func ParsePermissions(permissionsHeader string) []string {
 	return parseCommaSeparated(permissionsHeader)
 }
-
-
-
-
-
-
-

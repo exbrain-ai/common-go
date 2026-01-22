@@ -25,8 +25,8 @@ type AuthType string
 
 const (
 	AuthTypePassword AuthType = "password" // Password-based authentication (Onebox)
-	AuthTypeIAM     AuthType = "iam"       // IAM-based authentication (GCP)
-	AuthTypeAzureAD AuthType = "azuread"   // Azure AD authentication (Azure PostgreSQL)
+	AuthTypeIAM      AuthType = "iam"      // IAM-based authentication (GCP)
+	AuthTypeAzureAD  AuthType = "azuread"  // Azure AD authentication (Azure PostgreSQL)
 )
 
 // Azure AD token resource for PostgreSQL
@@ -87,14 +87,14 @@ func getAzureADToken(ctx context.Context, clientID string) (string, error) {
 	// Try Workload Identity first (AKS), then fallback to Managed Identity (VM)
 	// Workload Identity uses AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_FEDERATED_TOKEN_FILE env vars
 	// Managed Identity uses IMDS endpoint (169.254.169.254)
-	
+
 	var cred azcore.TokenCredential
 	var err error
-	
+
 	// Check if running in Workload Identity environment (AKS)
 	if os.Getenv("AZURE_FEDERATED_TOKEN_FILE") != "" {
 		log.Printf("Detected Workload Identity environment (AZURE_FEDERATED_TOKEN_FILE set)")
-		
+
 		// Use WorkloadIdentityCredential for AKS
 		// This uses the federated token file mounted by the workload identity webhook
 		opts := &azidentity.WorkloadIdentityCredentialOptions{}
@@ -104,14 +104,14 @@ func getAzureADToken(ctx context.Context, clientID string) (string, error) {
 		} else {
 			log.Printf("Using Workload Identity with auto-detected client ID from AZURE_CLIENT_ID env")
 		}
-		
+
 		cred, err = azidentity.NewWorkloadIdentityCredential(opts)
 		if err != nil {
 			return "", fmt.Errorf("failed to create Workload Identity credential: %w", err)
 		}
 	} else {
 		log.Printf("Using VM Managed Identity (IMDS)")
-		
+
 		// Use ManagedIdentityCredential for VMs
 		var credOptions *azidentity.ManagedIdentityCredentialOptions
 		if clientID != "" {
@@ -122,7 +122,7 @@ func getAzureADToken(ctx context.Context, clientID string) (string, error) {
 		} else {
 			log.Printf("No client ID provided, will auto-detect managed identity from pod's workload identity")
 		}
-		
+
 		cred, err = azidentity.NewManagedIdentityCredential(credOptions)
 		if err != nil {
 			if clientID == "" {
@@ -152,7 +152,7 @@ func getAzureADToken(ctx context.Context, clientID string) (string, error) {
 // Handles password-based, IAM-based (GCP), and Azure AD authentication based on AuthType
 func buildDSN(ctx context.Context, cfg Config) (string, error) {
 	password := cfg.Password
-	
+
 	if cfg.AuthType == AuthTypeIAM {
 		// IAM authentication: explicitly empty password
 		// Cloud SQL Proxy will handle IAM token exchange
@@ -165,7 +165,7 @@ func buildDSN(ctx context.Context, cfg Config) (string, error) {
 			return "", fmt.Errorf("failed to get Azure AD token: %w", err)
 		}
 		password = token
-		
+
 		// For Azure AD, username should be the managed identity client ID if provided
 		// If not provided, the database connection will use the auto-detected identity
 		if cfg.User == "" && cfg.AzureManagedIdentityClientID != "" {
@@ -175,13 +175,13 @@ func buildDSN(ctx context.Context, cfg Config) (string, error) {
 	// Debug: Log the config values being used
 	log.Printf("buildDSN - Host: %s, Port: %d, User: %s, Name: %s, SSLMode: %s",
 		cfg.Host, cfg.Port, cfg.User, cfg.Name, cfg.SSLMode)
-	
+
 	// PostgreSQL DSN format: Use postgres:// URL format for better special character handling
 	// The postgres:// URL format properly handles special characters in username/password
 	// Format: postgres://[user[:password]@][host][:port][/database][?parameters]
 	userName := cfg.User
 	dbName := cfg.Name
-	
+
 	// URL-encode special characters for postgres:// URL format
 	// The postgres:// parser will decode these before sending to PostgreSQL
 	if strings.Contains(userName, "@") {
@@ -208,7 +208,7 @@ func buildDSN(ctx context.Context, cfg Config) (string, error) {
 	if strings.Contains(userName, " ") {
 		userName = strings.ReplaceAll(userName, " ", "%20")
 	}
-	
+
 	// URL-encode database name if needed
 	if strings.Contains(dbName, "?") {
 		dbName = strings.ReplaceAll(dbName, "?", "%3F")
@@ -216,7 +216,7 @@ func buildDSN(ctx context.Context, cfg Config) (string, error) {
 	if strings.Contains(dbName, "#") {
 		dbName = strings.ReplaceAll(dbName, "#", "%23")
 	}
-	
+
 	// Build postgres:// URL format DSN
 	// For IAM auth, password is empty, so format is: postgres://user@host:port/db?sslmode=...
 	// Use url.QueryEscape for proper URL encoding
@@ -230,12 +230,12 @@ func buildDSN(ctx context.Context, cfg Config) (string, error) {
 		dsn = fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
 			userName, encodedPassword, cfg.Host, cfg.Port, dbName, cfg.SSLMode)
 	}
-	
+
 	log.Printf("buildDSN - URL-encoded username: %s", userName)
-	
+
 	// Security: never log DSNs because they can include secrets (passwords/tokens).
 	log.Printf("buildDSN - dbname in DSN: '%s' (length: %d)", dbName, len(dbName))
-	
+
 	return dsn, nil
 }
 
