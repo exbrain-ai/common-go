@@ -87,4 +87,3 @@ func getBaseMessage(code ErrorCode) string {
 		return MsgInternal
 	}
 }
-

@@ -9,13 +9,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
-	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/exbrain-ai/common-go/config"
 	"github.com/exbrain-ai/common-go/logger"
 	"github.com/exbrain-ai/common-go/response"
 	"github.com/exbrain-ai/common-go/types"
+	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/lestrrat-go/jwx/v2/jwk"
 )
 
 var (

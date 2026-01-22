@@ -14,4 +14,3 @@ const (
 	// Auth0UserKey is the Gin context key for Auth0 user
 	Auth0UserKey ContextKey = "auth0_user"
 )
-

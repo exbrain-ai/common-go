@@ -10,10 +10,11 @@ import (
 // by any Prometheus-compatible monitoring system.
 //
 // Usage:
-//   router := gin.New()
-//   middleware.RegisterMetrics(router)
-//   // Or with custom path:
-//   middleware.RegisterMetricsWithPath(router, "/custom/metrics")
+//
+//	router := gin.New()
+//	middleware.RegisterMetrics(router)
+//	// Or with custom path:
+//	middleware.RegisterMetricsWithPath(router, "/custom/metrics")
 //
 // The endpoint will be available at /metrics (or custom path) and can be scraped
 // by Prometheus when the Kubernetes service has prometheus.io/scrape annotation.
@@ -26,16 +27,3 @@ func RegisterMetrics(router *gin.Engine) {
 func RegisterMetricsWithPath(router *gin.Engine, path string) {
 	router.GET(path, gin.WrapH(promhttp.Handler()))
 }
-
-
-
-
-
-
-
-
-
-
-
-
-

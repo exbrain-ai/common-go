@@ -25,4 +25,3 @@ func (c *Auth0Config) Validate() error {
 
 	return nil
 }
-

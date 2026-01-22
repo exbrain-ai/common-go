@@ -29,4 +29,3 @@ const (
 	ErrCodeDuplicateEntry ErrorCode = "DUPLICATE_ENTRY"
 	ErrCodeNotFound       ErrorCode = "NOT_FOUND"
 )
-

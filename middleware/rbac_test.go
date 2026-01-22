@@ -617,10 +617,3 @@ func TestParsePermissions(t *testing.T) {
 		})
 	}
 }
-
-
-
-
-
-
-
