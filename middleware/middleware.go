@@ -52,16 +52,14 @@ func CORS(corsMaxAge int) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
 
-		// Set CORS headers
+		// Only emit CORS headers when an Origin header is present.
+		// When traffic is same-origin (e.g. via gateway), CORS headers are unnecessary and add noise.
 		if origin != "" {
 			c.Header("Access-Control-Allow-Origin", origin)
-		} else {
-			c.Header("Access-Control-Allow-Origin", "*")
+			c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, Authorization")
+			c.Header("Access-Control-Max-Age", fmt.Sprintf("%d", corsMaxAge))
 		}
-
-		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Accept, Authorization")
-		c.Header("Access-Control-Max-Age", fmt.Sprintf("%d", corsMaxAge))
 
 		// Handle preflight requests
 		if c.Request.Method == "OPTIONS" {

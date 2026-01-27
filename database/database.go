@@ -60,10 +60,23 @@ type tokenCache struct {
 
 var globalTokenCache = &tokenCache{}
 
-// getAzureADToken gets an Azure AD token for PostgreSQL authentication
+// IsAzureADAuthEnabled returns true if Azure AD authentication is available
+// This is determined by the presence of AZURE_FEDERATED_TOKEN_FILE env var
+// (set by Azure Workload Identity webhook)
+func IsAzureADAuthEnabled() bool {
+	return os.Getenv("AZURE_FEDERATED_TOKEN_FILE") != ""
+}
+
+// GetAzureADToken gets an Azure AD token for PostgreSQL authentication
 // Uses managed identity (Workload Identity) to acquire the token
 // If clientID is empty, the Azure SDK will auto-detect the managed identity from the pod's
 // service account annotation (azure.workload.identity/client-id) when running in AKS with Workload Identity enabled
+// This function can be used by any database client (GORM, pgx, etc.)
+func GetAzureADToken(ctx context.Context, clientID string) (string, error) {
+	return getAzureADToken(ctx, clientID)
+}
+
+// getAzureADToken is the internal implementation of GetAzureADToken
 func getAzureADToken(ctx context.Context, clientID string) (string, error) {
 	// Check cache first
 	globalTokenCache.mu.RLock()

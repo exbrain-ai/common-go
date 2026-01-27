@@ -1,0 +1,1 @@
+-- No-op: revoking would break dbui. Grants are idempotent; leave in place on down.
