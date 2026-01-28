@@ -21,16 +21,17 @@ import (
 // This middleware is defensive and will generate a request ID if missing.
 func PropagateRequestID() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		requestID := strings.TrimSpace(c.GetString("X-Request-ID"))
+		// gin-contrib/requestid stores the request ID under "requestid" (lowercase)
+		// Check this first before falling back to header
+		var requestID string
+		if val, exists := c.Get("requestid"); exists {
+			if id, ok := val.(string); ok {
+				requestID = strings.TrimSpace(id)
+			}
+		}
+		// Fallback: try to get from header directly (if client sent it)
 		if requestID == "" {
 			requestID = strings.TrimSpace(c.GetHeader("X-Request-ID"))
-		}
-		if requestID == "" {
-			if val, exists := c.Get("requestid"); exists {
-				if id, ok := val.(string); ok {
-					requestID = strings.TrimSpace(id)
-				}
-			}
 		}
 
 		if requestID == "" {
